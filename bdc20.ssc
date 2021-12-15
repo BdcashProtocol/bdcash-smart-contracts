@@ -1,0 +1,308 @@
+/**
+ * NAME: BDC-20
+ * DESCRIPTION: Example of ERC-20 implementation with BDCash Smart Contracts
+ * AUTHOR: turinglabs
+ * VERSION: 1.0.0
+ * IMMUTABLE: false
+ */
+
+// DEFINING COMPILER VERSION
+/* BDcash v0.0.2 */
+
+// ADDING EXTERNAL DEPENDENCIES
+const { sum, round, subtract } = require('mathjs')
+
+async function constructor() {}
+
+function private: processdata(data){
+    return new Promise(async response => {
+        if(Object.keys(data).length > 0){
+            let keys = Object.keys(data)
+            for(let k in Object.keys(data)){
+                console.log('ANALYZING DATA FOR ' + keys[k])
+                let address = keys[k]
+
+                for(let j in data[keys[k]]){
+                    let written = data[keys[k]][j]
+                    if(written.protocol === 'bdc20://'){
+                        let data = written.data.split(':')
+                        let action = data[0]
+                        let requestedtoken = data[1]
+                        if(requestedtoken === contract){
+                            if(action === 'transfer'){
+                                await transfer(data, address)
+                            }else if(action === 'mint'){
+                                await mint(data, address)
+                            }else if(action === 'burn'){
+                                await burn(data, address)
+                            }
+                        }
+                    }
+                }
+            }
+            response(true)
+        }else{
+            response(false)
+        }
+    })
+}
+
+async function public: eachBlock(block){
+    if(block['data_written'] !== undefined){
+        return await processdata(block['data_written'])
+    }else{
+        return false
+    }
+}
+
+async function public: ifMempool(mempool){
+    if(mempool['data_written'] !== undefined){
+        return await processdata(mempool['data_written'])
+    }else{
+        return false
+    }
+}
+
+function public: consensus(){
+    // THIS FUNCTION WILL BE CALLED TO CHECK THE CONSENSUS BETWEEN NODES
+    return new Promise(async response => {
+        let state = await db.read()
+        state.sort((a, b) => a.address.localeCompare(b.address));
+        let hash = await scrypta.hash(state)
+        response({
+            state: state,
+            hash: hash
+        })
+    })
+}
+
+function public: name(){
+    return "MyToken"
+}
+
+function public: symbol(){
+    return "MTT"
+}
+
+function public: owner(){
+    return "8SJq6a6AMigCiRHGrby4TuHeGirJw2PL5c"
+}
+
+function public: decimals(){
+    return 10
+}
+
+function public: totalSupply(){
+    return 100000000
+}
+
+function public: balanceOf(){
+    return new Promise(async response => {
+        if(request.address !== undefined || (request.message.params !== undefined && request.message.params.address !== undefined)){
+            if(request.message.params.address !== undefined){
+                let address = request.message.params.address
+                console.log('REQUESTING BALANCE FOR ' + address)
+                let balance = await db.read({"address": address})
+                if(Object.keys(balance).length > 0 && balance.balance !== undefined){
+                    response(balance.balance)
+                }else{
+                    response(0)
+                }
+            }else{
+                let balance = await db.read({"address": request.address})
+                if(Object.keys(balance).length > 0 && balance.balance !== undefined){
+                    response(balance.balance)
+                }else{
+                    response(0)
+                }
+            }
+        }else{
+            response(false)
+        }
+    })
+}
+
+function private: transfer(data, address){
+    return new Promise(async response => {
+        
+        /*
+        * EXPECTED TRANSFER TRANSACTION IS:
+        * bdc20://transfer:TOKENADDRESS:8i9BgCWhQrv8LhKD3U5HS47oencDrTDAZb:10000
+        */
+        
+        let to = data[2]
+        let amount = data[3]
+        let tokenDecimals = decimals()
+
+        if(to !== undefined && amount !== undefined && parseFloat(amount) > 0){
+            amount = round(amount, tokenDecimals)
+            let fromUser = await db.read({ "address": address })
+            if(Object.keys(fromUser).length > 0 && fromUser.balance !== undefined){
+                let fromUpdatedBalance = subtract(fromUser.balance , amount)
+                fromUpdatedBalance = round(fromUpdatedBalance, tokenDecimals)
+
+                if(fromUser.balance >= amount){
+                    let toUser = await db.read({ "address": to })
+                    if(Object.keys(toUser).length === 0){
+                        await db.insert({
+                            "address": to,
+                            "balance": amount
+                        })
+                        console.log('TO BALANCE IS ' + amount)
+                    }else{
+                        let toUpdatedBalance = sum(toUser.balance, amount)
+                        toUpdatedBalance = round(toUpdatedBalance, tokenDecimals)
+                        await db.update({ "address": to },
+                            { $set: {
+                                "balance": toUpdatedBalance
+                            } 
+                        })
+                        console.log('TO BALANCE IS ' + toUpdatedBalance)
+                    }
+
+                    await db.update({ "address": address },
+                        { $set: {
+                            "balance": fromUpdatedBalance
+                        } 
+                    })
+
+                    console.log('FROM BALANCE IS ' + fromUpdatedBalance)
+                    response(true)
+                } else {
+                    console.log('NOT ENOUGH BALANCE')
+                    response(false)
+                }
+            }else{
+                console.log('USER NOT FOUND')
+                response(false)
+            }
+        } else {
+            console.log('MALFORMED REQUEST')
+            response(false)
+        }
+    })
+}
+
+function private: mint(data, address){
+    return new Promise(async response => {
+
+        /*
+        * EXPECTED MINT TRANSACTION IS:
+        * src20://mint:TOKENADDRESS:10000
+        */
+
+        let amount = data[2]
+        let ownerAddress = owner()
+        let tokenDecimals = decimals()
+
+        if(amount !== undefined && address === ownerAddress && parseFloat(amount) > 0){
+            let max = totalSupply()
+            let ownerUser = await db.read({ "address": ownerAddress })
+            if(ownerUser.length === 0){
+                let validated = true
+                amount = round(amount, tokenDecimals)
+            
+                /*
+                * Check if amount is less than the max or is -1 which means it's unlimited
+                */
+                if(max !== -1 && amount > max){
+                    validated = false
+                }
+
+                if(validated){
+                    await db.insert({
+                        "address": ownerAddress,
+                        "balance": amount
+                    })
+                    console.log('OWNER ADDRESS CREATED')
+                    response(true)
+                }else{
+                    console.log("CAN'T MINT MORE THAN MAX SUPPLY")
+                    response(false)
+                }
+            }else{
+                let validated = true
+
+                // CHECK IF SUPPLY IS OPEN OR CLOSED
+                if(max !== -1){
+                    console.log('SUPPLY IS CLOSED, NEED TO CHECK TOTAL BALANCES')
+                    // IF SUPPLY IS CLOSED CHECK IF TOTAL SUPPLY IS REACHED OR NOT
+                    let expected = 0
+                    let shares = await db.read()
+                    if(shares.balance !== undefined){
+                        expected = sum(shares.balance, amount)
+                    }else{
+                        let totalBalances = 0
+                        for(let k in shares){
+                            totalBalances = sum(totalBalances, shares[k].balance)
+                        }
+                        expected = sum(totalBalances, amount)
+                    }
+                    expected = round(expected, tokenDecimals)
+                    if(expected > max){
+                        validated = false
+                        console.log("CAN'T MINT MORE THAN MAX SUPPLY")
+                    }
+                }
+
+                // IF VALIDATED UPDATE OWNER BALANCE
+                if(validated){
+                    console.log('NEW SUPPLY VALIDATED, UPDATING USER BALANCE')
+                    let updated = sum(ownerUser.balance, amount)
+                    updated = round(updated, tokenDecimals)
+                    await db.update({ "address": ownerAddress },
+                        { $set: {
+                            "balance": updated
+                        } 
+                    })
+                    console.log('OWNER ADDRESS UPDATED TO ' + updated)
+                    response(true)
+                }else{
+                    response(false)
+                }
+            }
+        }else{
+            console.log('MALFORMED REQUEST')
+            response(false)
+        }
+    })
+}
+
+function private: burn(data, address){
+    return new Promise(async response => {
+        /*
+        * EXPECTED BURN TRANSACTION IS:
+        * bdc20://burn:TOKENADDRESS:10000
+        */
+        
+        let amount = data[2]
+        let tokenDecimals = decimals()
+
+        if(amount !== undefined && parseFloat(amount) > 0){
+            let fromUser = await db.read({ "address": address })
+            if(Object.keys(fromUser).length > 0){
+                let balance = fromUser.balance
+                if(balance >= amount){
+                    console.log('BURNING VALIDATED')
+                    let updated = subtract(fromUser.balance, amount)
+                    updated = round(updated, tokenDecimals)
+                    await db.update({ "address": address },
+                        { $set: {
+                            "balance": updated
+                        } 
+                    })
+                    response(updated)
+                } else {
+                    console.log('NOT ENOUGH BALANCE')
+                    response(false)
+                }
+            }else{
+                console.log('USER NOT FOUND')
+                response(false)
+            }
+        }else{
+            console.log('MALFORMED REQUEST')
+            response(false)
+        }
+    })
+}

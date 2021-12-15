@@ -1,0 +1,78 @@
+/**
+ * NAME: BDCash Decentralized Identity
+ * DESCRIPTION: Example on how to manage identities over the blockchain
+ * AUTHOR: turinglabs
+ * VERSION: 1.0.0
+ * IMMUTABLE: false
+ */
+
+// DEFINING COMPILER VERSION
+/* BDCash v0.0.2 */
+
+async function constructor() {}
+
+
+function private: processdata(data){
+    return new Promise(async response => {
+        if(Object.keys(data).length > 0){
+            let keys = Object.keys(data)
+            for(let k in Object.keys(data)){
+                console.log('ANALYZING DATA FOR ' + keys[k])
+                let address = keys[k]
+
+                for(let j in data[keys[k]]){
+                    let written = data[keys[k]][j]
+                    if(written.protocol === 'did://'){
+                        let data = written.data.split(':')
+                        let action = data[0]
+                        if(action === 'register'){
+                            await register(data, address)
+                        }
+                    }
+                }
+            }
+            response(true)
+        }else{
+            response(false)
+        }
+    })
+}
+
+async function public: eachBlock(block){
+    if(block['data_written'] !== undefined){
+        return await processdata(block['data_written'])
+    }else{
+        return false
+    }
+}
+
+async function public: ifMempool(mempool){
+    if(mempool['data_written'] !== undefined){
+        return await processdata(mempool['data_written'])
+    }else{
+        return false
+    }
+}
+
+function public: consensus(){
+    // THIS FUNCTION WILL BE CALLED TO CHECK THE CONSENSUS BETWEEN NODES
+    return new Promise(async response => {
+        let state = await db.read()
+        state.sort((a, b) => a.address.localeCompare(b.address));
+        let hash = await scrypta.hash(state)
+        response({
+            state: state,
+            hash: hash
+        })
+    })
+}
+
+function private: register(data, address){
+    return new Promise(async response => {
+        /*
+        * EXPECTED REGISTER TRANSACTION IS:
+        * did://register:hash
+        */
+        
+    })
+}

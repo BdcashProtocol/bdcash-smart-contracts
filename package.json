@@ -1,0 +1,24 @@
+{
+  "name": "bdcash-smart-contracts",
+  "version": "1.0.0",
+  "description": "These contracts are examples that can be used as a basis for understanding how the BDCash VM works.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BdcashProtocol/bdcash-smart-contracts.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BdcashProtocol/bdcash-smart-contracts/issues"
+  },
+  "homepage": "https://github.com/BdcashProtocol/bdcash-smart-contracts#readme",
+  "dependencies": {
+    "@bdcash-protocol/core": "^1.0.9",
+    "axios": "^0.21.1",
+    "mathjs": "^9.0.0"
+  }
+}
