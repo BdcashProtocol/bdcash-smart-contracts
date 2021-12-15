@@ -9,7 +9,7 @@ To start developing smart contracts for BDCash you need to install 2 different c
 ### Install BDCashVM
 
 ```
-sudo npm install @scrypta/vm
+sudo npm install @bdcash-protocol/vm
 ```
 
 ### Install NodeSH
